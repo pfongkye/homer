@@ -1,5 +1,6 @@
 import type { JSONSchemaType } from 'ajv';
 import Ajv from 'ajv';
+import ReleasePluginManager from '@/core/pluginManager/ReleasePluginManager';
 import type {
   ProjectConfigurationsJSON,
   ProjectReleaseConfig,
@@ -46,7 +47,7 @@ const configsSchema: JSONSchemaType<ProjectConfigurationsJSON> = {
 
 const validateProjectReleaseConfig = ajv.compile(configsSchema);
 
-export function buildProjectReleaseConfigs(
+export async function buildProjectReleaseConfigs(
   configs: ProjectConfigurationsJSON,
   releaseManagers: Record<string, ReleaseManager>,
   releaseTagManagers: Record<string, ReleaseTagManager>
@@ -58,19 +59,26 @@ export function buildProjectReleaseConfigs(
   }
   const projects: ProjectReleaseConfig[] = [];
   for (const project of configs.projects) {
-    const {
-      releaseManager,
-      releaseTagManager,
-      notificationChannelIds,
-      projectId,
-      releaseChannelId,
-    } = project;
+    const { releaseManager, releaseTagManager, ...ids } = project;
     if (releaseManager in releaseManagers) {
       projects.push({
-        notificationChannelIds,
-        projectId,
-        releaseChannelId,
+        ...ids,
         releaseManager: releaseManagers[releaseManager],
+        releaseTagManager: releaseTagManager
+          ? releaseTagManagers[releaseTagManager]
+          : undefined,
+      });
+    } else {
+      if (
+        ReleasePluginManager.getReleaseManager(releaseManager) === undefined
+      ) {
+        await ReleasePluginManager.loadReleaseManagerPlugin(
+          `@root/plugins/release/${releaseManager}`
+        );
+      }
+      projects.push({
+        ...ids,
+        releaseManager: ReleasePluginManager.getReleaseManager(releaseManager)!,
         releaseTagManager: releaseTagManager
           ? releaseTagManagers[releaseTagManager]
           : undefined,
