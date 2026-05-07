@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { HTTP_STATUS_NO_CONTENT, HTTP_STATUS_OK } from '@/constants';
 import { getReviewsByMergeRequestIid } from '@/core/services/data';
+import { logger } from '@/core/services/logger';
 import { slackBotWebClient } from '@/core/services/slack';
 import type { GitlabProjectDetails } from '@/core/typings/GitlabProject';
 import { StateUpdateDebouncer } from '../utils/StateUpdateDebouncer';
@@ -16,7 +17,7 @@ const shockAbsorbers = new Map<
 
 export async function noteHookHandler(
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const { merge_request, object_attributes, project } = req.body as {
     merge_request: {
@@ -53,9 +54,9 @@ export async function noteHookHandler(
             new StateUpdateDebouncer([], (state) => {
               shockAbsorbers.delete(shockAbsorberId);
               return buildNoteMessage(channelId, ts, state).then(
-                slackBotWebClient.chat.postMessage
+                slackBotWebClient.chat.postMessage,
               );
-            })
+            }),
           );
         }
 
@@ -67,11 +68,16 @@ export async function noteHookHandler(
 
         return [
           buildReviewMessage(channelId, project.id, iid, ts).then(
-            slackBotWebClient.chat.update
+            slackBotWebClient.chat.update,
           ),
           shockAbsorber.promise,
         ];
       })
-      .flat()
-  );
+      .flat(),
+  ).catch((err) => {
+    logger.error(
+      { err, hook: 'note', mrIid: iid, projectId: project.id },
+      'webhook slack work failed',
+    );
+  });
 }
