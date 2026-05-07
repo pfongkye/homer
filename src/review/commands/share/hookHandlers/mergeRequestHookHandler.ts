@@ -94,7 +94,12 @@ export async function mergeRequestHookHandler(
       ].filter(Boolean);
       return Promise.all(updates);
     }),
-  );
+  ).catch((err) => {
+    logger.error(
+      { err, hook: 'merge_request', mrIid: iid, projectId },
+      'webhook slack work failed',
+    );
+  });
 
   if (['close', 'merge'].includes(action)) {
     await removeReviewsByMergeRequestIid(iid);
@@ -125,7 +130,12 @@ async function handleNewReview(projectId: number, iid: number): Promise<void> {
         ts: ts as string,
       });
     }),
-  );
+  ).catch((err) => {
+    logger.error(
+      { err, hook: 'merge_request', mrIid: iid, projectId },
+      'webhook slack work failed',
+    );
+  });
 }
 
 function getThreadMessage(

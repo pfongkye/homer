@@ -6,6 +6,7 @@ import {
   fetchMergeRequestCommits,
   fetchMergeRequestsByBranchName,
 } from '@/core/services/gitlab';
+import { logger } from '@/core/services/logger';
 import {
   fetchSlackUserFromEmail,
   slackBotWebClient,
@@ -15,7 +16,7 @@ import type { GitlabPushedCommit } from '@/core/typings/GitlabPushedCommit';
 
 export async function pushHookHandler(
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> {
   const { commits, project_id, ref } = req.body as {
     commits: GitlabPushedCommit[];
@@ -33,21 +34,21 @@ export async function pushHookHandler(
 
   const mergeRequests =
     (await fetchMergeRequestsByBranchName(project_id, branchName)).filter(
-      ({ merge_status }) => merge_status !== 'merged'
+      ({ merge_status }) => merge_status !== 'merged',
     ) || [];
 
   const mergeRequestsReviews = await Promise.all(
     mergeRequests.map(async (mergeRequest) => {
       const mergeRequestCommits = await fetchMergeRequestCommits(
         project_id,
-        mergeRequest.iid
+        mergeRequest.iid,
       );
 
       // Removes the rebase commits
       const newMergeRequestCommits = commits.filter((commit) =>
         mergeRequestCommits.some(
-          (mergeRequestCommit) => mergeRequestCommit.id === commit.id
-        )
+          (mergeRequestCommit) => mergeRequestCommit.id === commit.id,
+        ),
       );
 
       if (newMergeRequestCommits.length === 0) {
@@ -60,7 +61,7 @@ export async function pushHookHandler(
         ...review,
         newMergeRequestCommits,
       }));
-    })
+    }),
   );
   const reviews = mergeRequestsReviews.flat().filter(Boolean) as (DataReview & {
     newMergeRequestCommits: GitlabPushedCommit[];
@@ -73,59 +74,65 @@ export async function pushHookHandler(
   res.sendStatus(HTTP_STATUS_OK);
 
   await Promise.all(
-    reviews.map(async ({ channelId, newMergeRequestCommits, ts }) =>
-      slackBotWebClient.chat.postMessage({
-        text: ':git-commit: New commit(s)',
-        icon_emoji: ':git-commit:',
-        channel: channelId,
-        thread_ts: ts,
-        blocks: (
-          await Promise.all<KnownBlock[]>(
-            newMergeRequestCommits.map(
-              async (commit: GitlabPushedCommit): Promise<KnownBlock[]> => {
-                const author = await fetchSlackUserFromEmail(
-                  commit.author.email
-                );
-                return [
-                  {
-                    type: 'section',
-                    text: {
-                      type: 'mrkdwn',
-                      text: `<${commit.url}|${commit.title}>`,
-                    },
-                  },
-                  {
-                    type: 'context',
-                    elements: [
-                      ...(author !== undefined
-                        ? [
-                            {
-                              type: 'image' as const,
-                              image_url: author.profile.image_24,
-                              alt_text: author.real_name,
-                            },
-                            {
-                              type: 'mrkdwn' as const,
-                              text: `*${author.real_name}*`,
-                            },
-                          ]
-                        : []),
-                      {
-                        type: 'plain_text' as const,
-                        text: `${
-                          (commit.added || []).length +
-                          (commit.modified || []).length +
-                          (commit.removed || []).length
-                        } changes`,
+    reviews.map(({ channelId, mergeRequestIid, newMergeRequestCommits, ts }) =>
+      (async () =>
+        slackBotWebClient.chat.postMessage({
+          text: ':git-commit: New commit(s)',
+          icon_emoji: ':git-commit:',
+          channel: channelId,
+          thread_ts: ts,
+          blocks: (
+            await Promise.all<KnownBlock[]>(
+              newMergeRequestCommits.map(
+                async (commit: GitlabPushedCommit): Promise<KnownBlock[]> => {
+                  const author = await fetchSlackUserFromEmail(
+                    commit.author.email,
+                  );
+                  return [
+                    {
+                      type: 'section',
+                      text: {
+                        type: 'mrkdwn',
+                        text: `<${commit.url}|${commit.title}>`,
                       },
-                    ],
-                  },
-                ];
-              }
+                    },
+                    {
+                      type: 'context',
+                      elements: [
+                        ...(author !== undefined
+                          ? [
+                              {
+                                type: 'image' as const,
+                                image_url: author.profile.image_24,
+                                alt_text: author.real_name,
+                              },
+                              {
+                                type: 'mrkdwn' as const,
+                                text: `*${author.real_name}*`,
+                              },
+                            ]
+                          : []),
+                        {
+                          type: 'plain_text' as const,
+                          text: `${
+                            (commit.added || []).length +
+                            (commit.modified || []).length +
+                            (commit.removed || []).length
+                          } changes`,
+                        },
+                      ],
+                    },
+                  ];
+                },
+              ),
             )
-          )
-        ).flat(),
-      })
-    )
+          ).flat(),
+        }))().catch((err) => {
+        logger.error(
+          { err, hook: 'push', mrIid: mergeRequestIid, projectId: project_id },
+          'webhook slack work failed',
+        );
+      }),
+    ),
   );
 }
