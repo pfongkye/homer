@@ -24,6 +24,15 @@ export async function deleteEphemeralMessage(
   });
 }
 
+/**
+ * True when `err` is a `@slack/web-api` platform error whose Slack-side error
+ * code matches `code` (e.g. 'is_archived', 'channel_not_found'). The shape
+ * comes from `WebAPIPlatformError.data.error`.
+ */
+export function isSlackErrorCode(err: unknown, code: string): boolean {
+  return (err as { data?: { error?: string } } | null)?.data?.error === code;
+}
+
 // See https://api.slack.com/reference/surfaces/formatting#escaping
 export function escapeText(input: string): string {
   return input

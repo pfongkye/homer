@@ -1,6 +1,7 @@
 import type { GitlabMergeRequestState } from '@/core/typings/GitlabMergeRequest';
 
 export const CHANNEL_NOT_FOUND_SLACK_ERROR = 'channel_not_found';
+export const IS_ARCHIVED_SLACK_ERROR = 'is_archived';
 export const EXPIRED_TRIGGER_ID_ERROR_MESSAGE =
   'D’oh! It looks like I took too much time to respond for Slack, could you retry your command? :homer-donut:';
 export const EXPIRED_TRIGGER_ID_SLACK_ERROR = 'expired_trigger_id';
