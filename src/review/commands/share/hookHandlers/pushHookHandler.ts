@@ -7,7 +7,7 @@ import {
   fetchMergeRequestsByBranchName,
 } from '@/core/services/gitlab';
 import {
-  fetchSlackUserFromEmail,
+  fetchSlackUserFromEmails,
   slackBotWebClient,
 } from '@/core/services/slack';
 import type { DataReview } from '@/core/typings/Data';
@@ -85,9 +85,9 @@ export async function pushHookHandler(
             await Promise.all<KnownBlock[]>(
               newMergeRequestCommits.map(
                 async (commit: GitlabPushedCommit): Promise<KnownBlock[]> => {
-                  const author = await fetchSlackUserFromEmail(
+                  const author = await fetchSlackUserFromEmails([
                     commit.author.email,
-                  );
+                  ]);
                   return [
                     {
                       type: 'section',

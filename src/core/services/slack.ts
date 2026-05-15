@@ -58,38 +58,48 @@ export async function getPermalink(
   return permalink;
 }
 
-export async function fetchSlackUserFromEmail(
-  email: string,
-): Promise<SlackUser | undefined> {
-  try {
-    const response = await slackBotWebClient.users.lookupByEmail({ email });
-    return response.user as SlackUser;
-  } catch (error) {
-    logger.error(error, `Failed to to fetch slack user with email ${email}`);
-  }
-}
+const USERS_NOT_FOUND_SLACK_ERROR = 'users_not_found';
 
+/**
+ * Tries each email against `users.lookupByEmail` and returns the first match.
+ *
+ * Logging policy when no user is found:
+ *  - All lookups returned `users_not_found` → `logger.info` (expected
+ *    operational state: GitLab user left the company / is external / has no
+ *    corporate Slack account).
+ *  - At least one lookup threw a transient error (rate-limited, 5xx, …) →
+ *    `logger.warn` with the underlying error, since this may indicate Slack
+ *    health rather than user absence.
+ */
 export async function fetchSlackUserFromEmails(
   emails: string[],
 ): Promise<SlackUser | undefined> {
-  let user: SlackUser | undefined;
+  let transientError: unknown;
 
   for (const email of emails) {
     try {
       const response = await slackBotWebClient.users.lookupByEmail({ email });
-      user = response.user as SlackUser;
-      break;
-    } catch {
-      // Ignore
+      return response.user as SlackUser;
+    } catch (error) {
+      if (!isSlackErrorCode(error, USERS_NOT_FOUND_SLACK_ERROR)) {
+        transientError = error;
+      }
     }
   }
 
-  if (user === undefined) {
-    logger.error(
-      `Failed to to fetch slack user with emails ${emails.join(', ')}`,
+  if (emails.length === 0) {
+    return undefined;
+  }
+
+  if (transientError !== undefined) {
+    logger.warn({ err: transientError, emails }, 'slack user lookup failed');
+  } else {
+    logger.info(
+      { emails, slackError: USERS_NOT_FOUND_SLACK_ERROR },
+      'no slack user found for emails',
     );
   }
-  return user;
+  return undefined;
 }
 
 export async function fetchSlackUserFromGitlabUser({

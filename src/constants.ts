@@ -1,7 +1,6 @@
 import type { GitlabMergeRequestState } from '@/core/typings/GitlabMergeRequest';
 
 export const CHANNEL_NOT_FOUND_SLACK_ERROR = 'channel_not_found';
-export const IS_ARCHIVED_SLACK_ERROR = 'is_archived';
 export const EXPIRED_TRIGGER_ID_ERROR_MESSAGE =
   'D’oh! It looks like I took too much time to respond for Slack, could you retry your command? :homer-donut:';
 export const EXPIRED_TRIGGER_ID_SLACK_ERROR = 'expired_trigger_id';
@@ -10,6 +9,7 @@ export const GENERIC_ERROR_MESSAGE =
 export const HOMER_GIT_URL = `https://github.com/ManoManoTech/homer/`;
 export const HTTP_STATUS_NO_CONTENT = 204;
 export const HTTP_STATUS_OK = 200;
+export const IS_ARCHIVED_SLACK_ERROR = 'is_archived';
 export const MERGE_REQUEST_CLOSE_STATES: GitlabMergeRequestState[] = [
   'closed',
   'merged',
