@@ -5,7 +5,7 @@
 ![Homer](docs/assets/homer256.png)
 
 Homer is a **Slack** bot intended to help you to easily **share and follow
-Gitlab/GitHub merge requests**.
+Gitlab or GitHub merge requests**.
 
 ## Why Homer?
 
